@@ -26,5 +26,11 @@ class TestCrawl(unittest.TestCase):
         expected = "www.boot.dev/blog/path"
         self.assertEqual(actual, expected)
 
+    def test_normalize_url_invalid_url(self):
+        input_url = "not a valid url"
+        actual = normalize_url(input_url)
+        expected = "Invalid URL"
+        self.assertEqual(actual, expected)
+
 if __name__ == "__main__":
     unittest.main()
