@@ -1,21 +1,25 @@
-import urllib.parse as urllib
+from urllib.parse import urlparse
+from bs4 import BeautifulSoup, Tag
 
 def normalize_url(url: str) -> str:
-    parts = urllib.urlparse(url)
+    parsed_url = urlparse(url)
+    full_path = f"{parsed_url.netloc}{parsed_url.path}"
+    full_path = full_path.rstrip("/")
+    return full_path.lower()
 
-    netloc = parts.netloc
-    if netloc == "":
-        return "Invalid URL"
-    
-    if parts.path[-1] == "/":
-        path = parts.path[:-1]
+def get_heading_from_html(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    h_tag = soup.find("h1") or soup.find("h2")
+    return h_tag.get_text(strip=True) if isinstance(h_tag, Tag) else ""
+
+def get_first_paragraph_from_html(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    main_section = soup.find('main')
+    if isinstance(main_section, Tag):
+        first_p = main_section.find('p')
     else:
-        path = parts.path
+        first_p = soup.find("p")
 
-    if path == "":
-        return "Invalid URL"
-
-    normalized_url = f"{netloc}{path}"
-
-    return normalized_url
+    return first_p.get_text(strip=True) if isinstance(first_p, Tag) else ""
     
