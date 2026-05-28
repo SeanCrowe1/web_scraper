@@ -1,5 +1,14 @@
-from urllib.parse import urlparse
+from typing import TypedDict
+from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup, Tag
+
+class PageData(TypedDict):
+    url: str
+    heading: str
+    first_paragraph: str
+    outgoing_links: list[str]
+    image_urls: list[str]
+
 
 def normalize_url(url: str) -> str:
     parsed_url = urlparse(url)
@@ -22,4 +31,48 @@ def get_first_paragraph_from_html(html: str) -> str:
         first_p = soup.find("p")
 
     return first_p.get_text(strip=True) if isinstance(first_p, Tag) else ""
-    
+
+def get_urls_from_html(html: str, base_url: str) -> list[str]:
+    urls = []
+    soup = BeautifulSoup(html, "html.parser")
+    anchors = soup.find_all("a")
+
+    for anchor in anchors:
+        if not isinstance(anchor, Tag):
+            continue
+        href = anchor.get("href")
+        if isinstance(href, str) and href:
+            try:
+                absolute_url = urljoin(base_url, href)
+                urls.append(absolute_url)
+            except Exception as e:
+                print(f"{str(e)}: {href}")
+
+    return urls
+
+def get_images_from_html(html: str, base_url: str) -> list[str]:
+    image_urls = []
+    soup = BeautifulSoup(html, "html.parser")
+    images = soup.find_all("img")
+
+    for img in images:
+        if not isinstance(img, Tag):
+            continue
+        src = img.get("src")
+        if isinstance(src, str) and src:
+            try:
+                absolute_url = urljoin(base_url, src)
+                image_urls.append(absolute_url)
+            except Exception as e:
+                print(f"{str(e)}: {src}")
+
+    return image_urls
+
+def extract_page_data(html: str, page_url: str) -> PageData:
+    return {
+        "url": page_url,
+        "heading": get_heading_from_html(html),
+        "first_paragraph": get_first_paragraph_from_html(html),
+        "outgoing_links": get_urls_from_html(html, page_url),
+        "image_urls": get_images_from_html(html, page_url),
+    }

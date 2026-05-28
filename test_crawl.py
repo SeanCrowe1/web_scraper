@@ -1,5 +1,12 @@
 import unittest
-from crawl import normalize_url, get_heading_from_html, get_first_paragraph_from_html
+from crawl import (
+    normalize_url,
+    extract_page_data,
+    get_heading_from_html,
+    get_first_paragraph_from_html,
+    get_urls_from_html,
+    get_images_from_html
+)
 
 class TestCrawl(unittest.TestCase):
     # normalize_url() test cases
@@ -28,13 +35,13 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     # get_heading_from_html() test cases
-    def test_get_h1_heading_from_html(self):
+    def test_get_h1_heading_from_html(self) -> None:
         input_body = '<html><body><h1>Test Title</h1></body></html>'
         actual = get_heading_from_html(input_body)
         expected = "Test Title"
         self.assertEqual(actual, expected)
 
-    def test_get_h2_heading_from_html(self):
+    def test_get_h2_heading_from_html(self) -> None:
         input_body = '<html><body><h2>Test Title</h2></body></html>'
         actual = get_heading_from_html(input_body)
         expected = "Test Title"
@@ -46,26 +53,26 @@ class TestCrawl(unittest.TestCase):
         expected = "Whitespace Title"
         self.assertEqual(actual, expected)
 
-    def test_get_h1_heading_from_html_with_multiple_tags(self):
+    def test_get_h1_heading_from_html_with_multiple_tags(self) -> None:
         input_body = '<html><body><h1>Test Title</h1><h1>Test Title 2</h1><h2>Test SubTitle</h2></body></html>'
         actual = get_heading_from_html(input_body)
         expected = "Test Title"
         self.assertEqual(actual, expected)
 
-    def test_get_no_heading_from_html_with_invalid_tags(self):
+    def test_get_no_heading_from_html_with_invalid_tags(self) -> None:
         input_body = '<html><body><h3>Test Title</h3></body></html>'
         actual = get_heading_from_html(input_body)
         expected = ""
         self.assertEqual(actual, expected)
 
-    def test_get_no_heading_from_html_with_no_tags(self):
+    def test_get_no_heading_from_html_with_no_tags(self) -> None:
         input_body = ''
         actual = get_heading_from_html(input_body)
         expected = ""
         self.assertEqual(actual, expected)
 
     # get_first_paragraph_from_html() test cases
-    def test_get_first_paragraph_from_html_main_priority(self):
+    def test_get_first_paragraph_from_html_main_priority(self) -> None:
         input_body = '''<html><body>
             <p>Outside paragraph.</p>
             <main>
@@ -76,7 +83,7 @@ class TestCrawl(unittest.TestCase):
         expected = "Main paragraph."
         self.assertEqual(actual, expected)
 
-    def test_get_first_paragraph_from_html_no_main(self):
+    def test_get_first_paragraph_from_html_no_main(self) -> None:
         input_body = '''<html><body>
             <p>Outside paragraph.</p>
             <p>Main paragraph.</p>
@@ -85,11 +92,130 @@ class TestCrawl(unittest.TestCase):
         expected = "Outside paragraph."
         self.assertEqual(actual, expected)
 
-    def test_get_first_paragraph_from_html_no_p(self):
+    def test_get_first_paragraph_from_html_no_p(self) -> None:
         input_body = '''<html><body>
         </body></html>'''
         actual = get_first_paragraph_from_html(input_body)
         expected = ""
+        self.assertEqual(actual, expected)
+
+    # get_urls_from_html() test cases
+    def test_get_urls_from_html_absolute(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><a href="https://crawler-test.com"><span>Boot.dev</span></a></body></html>'
+        actual = get_urls_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com"]
+        self.assertEqual(actual, expected)
+
+    def test_get_urls_from_html_relative(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = (
+            '<html><body><a href="/path/one"><span>Boot.dev</span></a></body></html>'
+        )
+        actual = get_urls_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com/path/one"]
+        self.assertEqual(actual, expected)
+
+    def test_get_urls_from_html_both(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><a href="/path/one"><span>Boot.dev</span></a><a href="https://other.com/path/one"><span>Boot.dev</span></a></body></html>'
+        actual = get_urls_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com/path/one", "https://other.com/path/one"]
+        self.assertEqual(actual, expected)
+
+    # get_images_from_html() test cases
+    def test_get_images_from_html(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><img src="/logo.png" alt="Logo"></body></html>'
+        actual = get_images_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com/logo.png"]
+        self.assertEqual(actual, expected)
+
+    def test_get_images_from_html_absolute(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><img src="https://crawler-test.com/logo.png" alt="Logo"></body></html>'
+        actual = get_images_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com/logo.png"]
+        self.assertEqual(actual, expected)
+
+    def test_get_images_from_html_relative(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><img src="/logo.png" alt="Logo"></body></html>'
+        actual = get_images_from_html(input_body, input_url)
+        expected = ["https://crawler-test.com/logo.png"]
+        self.assertEqual(actual, expected)
+
+    def test_get_images_from_html_multiple(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '<html><body><img src="/logo.png" alt="Logo"><img src="https://cdn.boot.dev/banner.jpg"></body></html>'
+        actual = get_images_from_html(input_body, input_url)
+        expected = [
+            "https://crawler-test.com/logo.png",
+            "https://cdn.boot.dev/banner.jpg",
+        ]
+        self.assertEqual(actual, expected)
+
+    # extract_page_data() test cases
+    def test_extract_page_data(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = '''<html><body>
+            <h1>Test Title</h1>
+            <p>This is the first paragraph.</p>
+            <a href="/link1">Link 1</a>
+            <img src="/image1.jpg" alt="Image 1">
+        </body></html>'''
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://crawler-test.com",
+            "heading": "Test Title",
+            "first_paragraph": "This is the first paragraph.",
+            "outgoing_links": ["https://crawler-test.com/link1"],
+            "image_urls": ["https://crawler-test.com/image1.jpg"]
+        }
+        self.assertEqual(actual, expected)
+
+    def test_extract_page_data_basic(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = """<html><body>
+            <h1>Test Title</h1>
+            <p>This is the first paragraph.</p>
+            <a href="/link1">Link 1</a>
+            <img src="/image1.jpg" alt="Image 1">
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://crawler-test.com",
+            "heading": "Test Title",
+            "first_paragraph": "This is the first paragraph.",
+            "outgoing_links": ["https://crawler-test.com/link1"],
+            "image_urls": ["https://crawler-test.com/image1.jpg"],
+        }
+        self.assertEqual(actual, expected)
+
+    def test_extract_page_data_main_section(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = """<html><body>
+            <nav><p>Navigation paragraph</p></nav>
+            <main>
+                <h1>Main Title</h1>
+                <p>Main paragraph content.</p>
+            </main>
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        self.assertEqual(actual["heading"], "Main Title")
+        self.assertEqual(actual["first_paragraph"], "Main paragraph content.")
+
+    def test_extract_page_data_missing_elements(self) -> None:
+        input_url = "https://crawler-test.com"
+        input_body = "<html><body><div>No h1, p, links, or images</div></body></html>"
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://crawler-test.com",
+            "heading": "",
+            "first_paragraph": "",
+            "outgoing_links": [],
+            "image_urls": [],
+        }
         self.assertEqual(actual, expected)
 
 if __name__ == "__main__":
