@@ -1,5 +1,9 @@
+import asyncio
+from types import TracebackType
 from typing import TypedDict
 from urllib.parse import urlparse, urljoin
+
+import aiohttp
 from bs4 import BeautifulSoup, Tag
 
 class PageData(TypedDict):
@@ -76,3 +80,93 @@ def extract_page_data(html: str, page_url: str) -> PageData:
         "outgoing_links": get_urls_from_html(html, page_url),
         "image_urls": get_images_from_html(html, page_url),
     }
+
+class AsyncCrawler:
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url
+        self.base_domain = urlparse(base_url).netloc
+        self.page_data: dict[str, PageData] = {}
+        self.lock = asyncio.Lock()
+        self.max_concurrency = 50 
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)
+        self.session: aiohttp.ClientSession | None = None
+
+    async def __aenter__(self) -> "AsyncCrawler":
+        self.session = aiohttp.ClientSession()
+        return self
+    
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
+        assert self.session is not None
+        await self.session.close()
+
+    async def add_page_visit(self, normalized_url: str) -> bool:
+        async with self.lock:
+            if normalized_url in self.page_data:
+                return False
+            else:
+                return True
+            
+    async def get_html(self, url: str) -> str | None:
+        try:
+            assert self.session is not None
+            async with self.session.get(
+                url, headers={"USer-Agent": "BootCrawler/1.0"}
+            ) as response:
+                if response.status > 399:
+                    print(f"Error: HTTP {response.status} for {url}")
+                    return None
+                
+                content_type = response.headers.get("content-type", "")
+                if "text/html" not in content_type:
+                    print(f"Error: Non-HTM: content {content_type} for {url}")
+                    return None
+
+                return await response.text()
+        except Exception as e:
+            print(f"Error fetching {url}: {e}")
+            return None
+        
+    async def crawl_page(self, current_url: str) -> None:
+        current_url_obj = urlparse(current_url)
+        if current_url_obj.netloc != self.base_domain:
+            return
+        
+        normalized_url = normalize_url(current_url)
+
+        is_new = await self.add_page_visit(normalized_url)
+        if not is_new:
+            return
+        
+        async with self.semaphore:
+            print(
+                f"Crawling {current_url} (Active {self.max_concurrency - self.semaphore._value})"
+            )
+            html = await self.get_html(current_url)
+            if html is None:
+                return
+            
+            page_info = extract_page_data(html, current_url)
+            async with self.lock:
+                self.page_data[normalized_url] = page_info
+
+            next_urls = get_urls_from_html(html, self.base_url)
+            
+        tasks: list[asyncio.Task[None]] = []
+        for next_url in next_urls:
+            tasks.append(asyncio.create_task(self.crawl_page(next_url)))
+
+        if tasks:
+            await asyncio.gather(*tasks)
+
+    async def crawl(self) -> dict[str, PageData]:
+        await self.crawl_page(self.base_url)
+        return self.page_data
+    
+async def crawl_site_async(base_url: str) -> dict[str, PageData]:
+    async with AsyncCrawler(base_url) as crawler:
+        return await crawler.crawl()
